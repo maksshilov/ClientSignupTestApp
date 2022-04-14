@@ -1,33 +1,65 @@
-import React, { useState, useReducer, useCallback } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import React, { useReducer } from 'react'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
 import { Button, Checkbox, RadioButton, TextInput } from 'react-native-paper'
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
+import { Picker } from '@react-native-picker/picker'
 // src
 import { windowWidth } from './src/styles/variables'
 // BODY
 
 const SET_FORM = 'SET_FORM'
+const RESET_STATE = 'RESET_STATE'
 const formReducer = (state, action) => {
-  if (action.type === SET_FORM) {
-    const updatedValues = {
-      ...state.inputValues,
-      [action.input]: action.value,
-    }
+  switch (action.type) {
+    case SET_FORM:
+      const updatedValues = {
+        ...state.inputValues,
+        [action.input]: action.value,
+      }
 
-    const updatedValidities = {
-      ...state.inputValidities,
-      [action.input]: action.isValid,
-    }
+      let updatedValidities = state.inputValidities
+      if (action.input === 'firstName' || action.input === 'lastName' || action.input === 'birthDate') {
+        updatedValidities = {
+          ...state.inputValidities,
+          [action.input]: action.isValid,
+        }
+      }
 
-    let updatedFormIsValid = false
-    return {
-      inputValues: updatedValues,
-      inputValidities: updatedValidities,
-      formIsValid: updatedFormIsValid,
-    }
+      let updatedFormIsValid = true
+      for (const key in updatedValidities) {
+        updatedFormIsValid = updatedFormIsValid && updatedValidities[key]
+      }
+
+      return {
+        inputValues: updatedValues,
+        inputValidities: updatedValidities,
+        formIsValid: updatedFormIsValid,
+      }
+
+    case RESET_STATE:
+      return {
+        inputValues: {
+          lastName: '',
+          firstName: '',
+          thirdName: '',
+          birthDate: '',
+          gender: undefined,
+          status: 0,
+          sms: false,
+        },
+        inputValidities: {
+          lastName: true,
+          firstName: true,
+          thirdName: true,
+          birthDate: true,
+        },
+        formIsValid: false,
+      }
+
+    default:
+      return state
   }
-  return state
 }
 
 export default function App() {
@@ -38,7 +70,7 @@ export default function App() {
       thirdName: '',
       birthDate: '',
       gender: undefined,
-      status: null,
+      status: 0,
       sms: false,
     },
     inputValidities: {
@@ -49,121 +81,155 @@ export default function App() {
     formIsValid: false,
   })
 
-  const { firstName, lastName, thirdName, gender, sms } = formState.inputValues
+  const { firstName, lastName, thirdName, birthDate, gender, sms } = formState.inputValues
+  const { firstName: firstNameValid, lastName: lastNameValid, birthDate: birthDateValid } = formState.inputValidities
 
-  function inputChangeHandler(inputIdentifier, inputValue, inputValidity) {
+  function inputChangeHandler(inputIdentifier, inputValue) {
+    let isValid = false
+
+    // Validate lastName & firstName
+    if (inputIdentifier === 'lastName' || inputIdentifier === 'firstName') {
+      if (inputValue.length !== 0 && inputValue.length < 101) {
+        isValid = true
+      }
+    }
+
+    // Validate thirdName
+    if (inputIdentifier === 'thirdName') {
+      if (inputValue.length !== 0 && inputValue.length < 101) {
+        isValid = true
+      } else {
+        isValid = false
+      }
+    }
+
+    // validate birthdate
+    if (inputIdentifier === 'birthDate' && inputValue !== new Date().toISOString().split('T')[0]) {
+      isValid = true
+    }
+
     dispatchFormState({
       type: SET_FORM,
       input: inputIdentifier,
       value: inputValue,
-      isValid: inputValidity,
+      isValid,
     })
   }
 
-  const [date, setDate] = useState(new Date())
-  console.log(date)
-  const onChange = (event, selectedDate) => {
-    const currentDate = selectedDate.toISOString().split('T')
-    setDate(currentDate)
+  function nameFilterHandler(inputIdentifier, text) {
+    text = text.toString().trim().replace(/\d/g, '')
+    inputChangeHandler(inputIdentifier, text)
   }
-  const showMode = currentMode => {
+
+  // console.log(formState)
+
+  // DatePicker -->
+  function onChange(selectedDate) {
+    const currentDate = selectedDate.toISOString().split('T')[0]
+    inputChangeHandler('birthDate', currentDate)
+  }
+  function showDatepicker() {
     DateTimePickerAndroid.open({
-      value: date,
+      value: new Date(),
       onChange,
-      mode: currentMode,
-      is24Hour: true,
+      mode: 'date',
     })
   }
-  const showDatepicker = () => {
-    showMode('date')
-  }
-  const showTimepicker = () => {
-    showMode('time')
+  // <-- DatePicker
+
+  function submitHandler() {
+    dispatchFormState({ type: RESET_STATE })
   }
 
-  console.log(formState)
+  // console.log(formState.inputValues)
 
   return (
-    <View style={styles.center}>
-      <View style={styles.wrapper}>
-        <TextInput
-          label={'Фамилия *'}
-          mode="outlined"
-          onChangeText={text => {
-            text = text.toString().trim().replace(/\d/g, '')
-            inputChangeHandler('lastName', text)
-          }}
-          value={() => lastName}
-          returnKeyType="next"
-          onEndEditing={() => console.log('end editing')}
-          onSubmitEditing={() => console.log('submit editing')}
-        />
-      </View>
-      <View style={styles.wrapper}>
-        <TextInput
-          label={formState.inputValidities.firstName ? 'Имя *' : 'Необходимо ввести имя'}
-          error={!formState.inputValidities.firstName}
-          mode="outlined"
-          onChangeText={text => {
-            let isValid = formState.inputValidities.firstName
-            isValid = text.toString().trim().length > 0
-            console.log(isValid)
-            text = text.toString().trim().replace(/\d/g, '')
-            inputChangeHandler('firstName', text, isValid)
-          }}
-          value={() => firstName}
-          onEndEditing={() => console.log('end editing')}
-          onSubmitEditing={() => console.log('submit editing')}
-        />
-      </View>
-      <View style={styles.wrapper}>
-        <TextInput
-          label={'Отчество'}
-          mode="outlined"
-          onChangeText={text => {
-            text = text.toString().trim().replace(/\d/g, '')
-            inputChangeHandler('thirdName', text)
-          }}
-          value={() => thirdName}
-        />
-      </View>
-
-      <View style={[styles.wrapper, { flexDirection: 'row', alignItems: 'center' }]}>
-        <Text style={styles.genderTitle}>День рождения:</Text>
-        <Text style={styles.genderText}> {date[0]} </Text>
-        <TouchableOpacity onPress={showDatepicker}>
-          <MaterialCommunityIcons name="calendar" color={'#000'} size={25} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.gender}>
-        <Text style={styles.genderTitle}>Пол:</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <RadioButton
-            value={'m'}
-            status={gender === 1 ? 'checked' : 'unchecked'}
-            onPress={inputChangeHandler.bind(null, 'gender', 1)}
+    <ScrollView>
+      <View style={styles.center}>
+        {/* Last Name */}
+        <View style={styles.wrapper}>
+          <TextInput
+            label={lastNameValid ? 'Фамилия *' : 'Необходимо ввести фамилию'}
+            error={!lastNameValid}
+            onBlur={() => inputChangeHandler('lastName', lastName)}
+            mode="outlined"
+            onChangeText={nameFilterHandler.bind(this, 'lastName')}
+            value={() => lastName}
+            returnKeyType="next"
           />
-          <Text style={styles.genderText}>Мужской</Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <RadioButton
-            value={'f'}
-            status={gender === 0 ? 'checked' : 'unchecked'}
-            onPress={inputChangeHandler.bind(null, 'gender', 0)}
+        {/* First Name */}
+        <View style={styles.wrapper}>
+          <TextInput
+            label={firstNameValid ? 'Имя *' : 'Необходимо ввести имя'}
+            error={!firstNameValid}
+            onBlur={() => inputChangeHandler('firstName', firstName)}
+            mode="outlined"
+            onChangeText={nameFilterHandler.bind(this, 'firstName')}
+            value={() => firstName}
+            returnKeyType="next"
           />
-          <Text style={styles.genderText}>Женский</Text>
         </View>
+        {/* Third name */}
+        <View style={styles.wrapper}>
+          <TextInput
+            label={'Отчество'}
+            mode="outlined"
+            onChangeText={nameFilterHandler.bind(this, 'thirdName')}
+            value={() => thirdName}
+          />
+        </View>
+        {/* DATE */}
+        <View style={[styles.wrapper, styles.rowCenter]}>
+          <Text style={styles.genderTitle}>День рождения: </Text>
+          <Text style={styles.genderText}>{birthDate}</Text>
+          <TouchableOpacity onPress={showDatepicker}>
+            <MaterialCommunityIcons name="calendar" color={'#000'} size={25} style={{ marginHorizontal: 5 }} />
+          </TouchableOpacity>
+        </View>
+        {/* GENDER */}
+        <View style={styles.gender}>
+          <Text style={styles.genderTitle}>Пол:</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <RadioButton
+              value={'m'}
+              status={gender === 1 ? 'checked' : 'unchecked'}
+              onPress={inputChangeHandler.bind(null, 'gender', 1)}
+            />
+            <Text style={styles.genderText}>Мужской</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <RadioButton
+              value={'f'}
+              status={gender === 0 ? 'checked' : 'unchecked'}
+              onPress={inputChangeHandler.bind(null, 'gender', 0)}
+            />
+            <Text style={styles.genderText}>Женский</Text>
+          </View>
+        </View>
+        {/* SELECTOR */}
+        <View style={styles.selectorWrapper}>
+          <Text style={styles.genderTitle}>Группа клиентов</Text>
+          <Picker
+            selectedValue={formState.inputValues.status}
+            onValueChange={itemValue => inputChangeHandler('status', itemValue)}>
+            <Picker.Item label="-- выберите группу клиентов --" value={0} />
+            <Picker.Item label="VIP" value={1} />
+            <Picker.Item label="Проблемные" value={2} />
+            <Picker.Item label="ОМС" value={3} />
+          </Picker>
+        </View>
+        {/* SMS */}
+        <View style={[styles.wrapper, styles.rowCenter]}>
+          <Checkbox status={sms ? 'checked' : 'unchecked'} onPress={() => inputChangeHandler('sms', !sms)} />
+          <Text style={styles.genderText}>Уведомления по СМС</Text>
+        </View>
+        {/*  BTN SEND */}
+        <Button mode="contained" onPress={submitHandler} disabled={!formState.formIsValid}>
+          Зарегистрировать
+        </Button>
       </View>
-
-      <View style={[styles.wrapper, { flexDirection: 'row', alignItems: 'center' }]}>
-        <Checkbox status={sms ? 'checked' : 'unchecked'} onPress={() => inputChangeHandler('sms', !sms)} />
-        <Text style={styles.genderText}>Уведомления по СМС</Text>
-      </View>
-      <Button mode="contained" onPress={() => console.log('send')}>
-        Sign Up
-      </Button>
-    </View>
+    </ScrollView>
   )
 }
 
@@ -177,7 +243,10 @@ const styles = StyleSheet.create({
     width: windowWidth * 0.9,
     marginVertical: 10,
   },
-
+  rowCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   genderTitle: {
     fontWeight: 'bold',
     fontSize: 15,
@@ -191,5 +260,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: windowWidth * 0.9,
     marginVertical: 10,
+  },
+  selectorWrapper: {
+    width: windowWidth * 0.9,
+    height: windowWidth * 0.15,
+    marginVertical: 20,
   },
 })
