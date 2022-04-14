@@ -4,12 +4,14 @@ import { Button, Checkbox, RadioButton, TextInput } from 'react-native-paper'
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import { Picker } from '@react-native-picker/picker'
+import axios from 'axios'
 // src
 import { windowWidth } from './src/styles/variables'
 // BODY
 
 const SET_FORM = 'SET_FORM'
 const RESET_STATE = 'RESET_STATE'
+const SET_LOADING = 'SET_LOADING'
 const formReducer = (state, action) => {
   switch (action.type) {
     case SET_FORM:
@@ -57,6 +59,12 @@ const formReducer = (state, action) => {
         formIsValid: false,
       }
 
+    case SET_LOADING:
+      return {
+        ...state,
+        loading: action.loading,
+      }
+
     default:
       return state
   }
@@ -65,8 +73,8 @@ const formReducer = (state, action) => {
 export default function App() {
   const [formState, dispatchFormState] = useReducer(formReducer, {
     inputValues: {
-      lastName: '',
-      firstName: '',
+      lastName: 'Ivanov',
+      firstName: 'Ivan',
       thirdName: '',
       birthDate: '',
       gender: undefined,
@@ -76,12 +84,13 @@ export default function App() {
     inputValidities: {
       lastName: true,
       firstName: true,
-      birthDate: true,
+      birthDate: false,
     },
     formIsValid: false,
+    loading: false,
   })
 
-  const { firstName, lastName, thirdName, birthDate, gender, sms } = formState.inputValues
+  const { firstName, lastName, thirdName, birthDate, gender, status, sms } = formState.inputValues
   const { firstName: firstNameValid, lastName: lastNameValid, birthDate: birthDateValid } = formState.inputValidities
 
   function inputChangeHandler(inputIdentifier, inputValue) {
@@ -104,7 +113,7 @@ export default function App() {
     }
 
     // validate birthdate
-    if (inputIdentifier === 'birthDate' && inputValue !== new Date().toISOString().split('T')[0]) {
+    if (inputIdentifier === 'birthDate' && Date.parse(inputValue) < Date.parse(new Date()) - 1000 * 60 * 60 * 24) {
       isValid = true
     }
 
@@ -124,8 +133,8 @@ export default function App() {
   // console.log(formState)
 
   // DatePicker -->
-  function onChange(selectedDate) {
-    const currentDate = selectedDate.toISOString().split('T')[0]
+  function onChange(event, selectedDate) {
+    const currentDate = selectedDate.toISOString()
     inputChangeHandler('birthDate', currentDate)
   }
   function showDatepicker() {
@@ -137,8 +146,30 @@ export default function App() {
   }
   // <-- DatePicker
 
-  function submitHandler() {
-    dispatchFormState({ type: RESET_STATE })
+  async function submitHandler() {
+    let body = {
+      lastName,
+      firstName,
+      thirdName,
+      birthDate: birthDate.split('T')[0],
+      gender,
+      status,
+      sms,
+    }
+    try {
+      dispatchFormState({ type: SET_LOADING, loading: true })
+      let uri = 'https://622f121d-5f5c-452f-afa7-7787dd15f8c8.mock.pstmn.io/client'
+
+      let headers = { 'Content-Type': 'application/json' }
+      const response = await axios.post(uri, body, headers)
+      console.log('response', JSON.stringify(response, null, 4))
+
+      dispatchFormState({ type: RESET_STATE })
+      dispatchFormState({ type: SET_LOADING, loading: false })
+    } catch (error) {
+      console.log(error)
+      dispatchFormState({ type: SET_LOADING, loading: false })
+    }
   }
 
   // console.log(formState.inputValues)
@@ -182,7 +213,9 @@ export default function App() {
         {/* DATE */}
         <View style={[styles.wrapper, styles.rowCenter]}>
           <Text style={styles.genderTitle}>День рождения: </Text>
-          <Text style={styles.genderText}>{birthDate}</Text>
+          <Text style={styles.genderText}>
+            {!birthDate.length ? '' : birthDateValid ? birthDate?.split('T')[0] : 'Неверная дата!'}
+          </Text>
           <TouchableOpacity onPress={showDatepicker}>
             <MaterialCommunityIcons name="calendar" color={'#000'} size={25} style={{ marginHorizontal: 5 }} />
           </TouchableOpacity>
@@ -225,7 +258,7 @@ export default function App() {
           <Text style={styles.genderText}>Уведомления по СМС</Text>
         </View>
         {/*  BTN SEND */}
-        <Button mode="contained" onPress={submitHandler} disabled={!formState.formIsValid}>
+        <Button mode="contained" onPress={submitHandler} disabled={!formState.formIsValid} loading={formState.loading}>
           Зарегистрировать
         </Button>
       </View>
