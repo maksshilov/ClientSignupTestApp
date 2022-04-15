@@ -1,5 +1,5 @@
 import React, { useReducer } from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native'
 import { Button, Checkbox, RadioButton, TextInput } from 'react-native-paper'
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
@@ -7,11 +7,14 @@ import { Picker } from '@react-native-picker/picker'
 import axios from 'axios'
 // src
 import { windowWidth } from './src/styles/variables'
+import ModalPopup from './src/components/Modal'
 // BODY
 
 const SET_FORM = 'SET_FORM'
 const RESET_STATE = 'RESET_STATE'
 const SET_LOADING = 'SET_LOADING'
+const SET_MODAL = 'SET_MODAL'
+
 const formReducer = (state, action) => {
   switch (action.type) {
     case SET_FORM:
@@ -65,6 +68,12 @@ const formReducer = (state, action) => {
         loading: action.loading,
       }
 
+    case SET_MODAL:
+      return {
+        ...state,
+        ok: action.ok,
+      }
+
     default:
       return state
   }
@@ -88,6 +97,7 @@ export default function App() {
     },
     formIsValid: false,
     loading: false,
+    ok: undefined,
   })
 
   const { firstName, lastName, thirdName, birthDate, gender, status, sms } = formState.inputValues
@@ -125,12 +135,11 @@ export default function App() {
     })
   }
 
+  // replace number and spaces from names
   function nameFilterHandler(inputIdentifier, text) {
     text = text.toString().trim().replace(/\d/g, '')
     inputChangeHandler(inputIdentifier, text)
   }
-
-  // console.log(formState)
 
   // DatePicker -->
   function onChange(event, selectedDate) {
@@ -162,111 +171,120 @@ export default function App() {
 
       let headers = { 'Content-Type': 'application/json' }
       const response = await axios.post(uri, body, headers)
-      console.log('response', JSON.stringify(response, null, 4))
+      // console.log('response', JSON.stringify(response, null, 4))
 
       dispatchFormState({ type: RESET_STATE })
       dispatchFormState({ type: SET_LOADING, loading: false })
+      dispatchFormState({ type: SET_MODAL, ok: true })
     } catch (error) {
-      console.log(error)
       dispatchFormState({ type: SET_LOADING, loading: false })
+      dispatchFormState({ type: SET_MODAL, ok: false })
     }
   }
 
   // console.log(formState.inputValues)
 
   return (
-    <ScrollView>
-      <View style={styles.center}>
-        {/* Last Name */}
-        <View style={styles.wrapper}>
-          <TextInput
-            label={lastNameValid ? 'Фамилия *' : 'Необходимо ввести фамилию'}
-            error={!lastNameValid}
-            onBlur={() => inputChangeHandler('lastName', lastName)}
-            mode="outlined"
-            onChangeText={nameFilterHandler.bind(this, 'lastName')}
-            value={() => lastName}
-            returnKeyType="next"
-          />
-        </View>
-        {/* First Name */}
-        <View style={styles.wrapper}>
-          <TextInput
-            label={firstNameValid ? 'Имя *' : 'Необходимо ввести имя'}
-            error={!firstNameValid}
-            onBlur={() => inputChangeHandler('firstName', firstName)}
-            mode="outlined"
-            onChangeText={nameFilterHandler.bind(this, 'firstName')}
-            value={() => firstName}
-            returnKeyType="next"
-          />
-        </View>
-        {/* Third name */}
-        <View style={styles.wrapper}>
-          <TextInput
-            label={'Отчество'}
-            mode="outlined"
-            onChangeText={nameFilterHandler.bind(this, 'thirdName')}
-            value={() => thirdName}
-          />
-        </View>
-        {/* DATE */}
-        <View style={[styles.wrapper, styles.rowCenter]}>
-          <Text style={styles.genderTitle}>День рождения: </Text>
-          <Text style={styles.genderText}>
-            {!birthDate.length ? '' : birthDateValid ? birthDate?.split('T')[0] : 'Неверная дата!'}
-          </Text>
-          <TouchableOpacity onPress={showDatepicker}>
-            <MaterialCommunityIcons name="calendar" color={'#000'} size={25} style={{ marginHorizontal: 5 }} />
-          </TouchableOpacity>
-        </View>
-        {/* GENDER */}
-        <View style={styles.gender}>
-          <Text style={styles.genderTitle}>Пол:</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <RadioButton
-              value={'m'}
-              status={gender === 1 ? 'checked' : 'unchecked'}
-              onPress={inputChangeHandler.bind(null, 'gender', 1)}
+    <>
+      <ScrollView contentContainerStyle={{ backgroundColor: '#fff' }}>
+        <View style={styles.center}>
+          {/* Last Name */}
+          <View style={styles.wrapper}>
+            <TextInput
+              label={lastNameValid ? 'Фамилия *' : 'Необходимо ввести фамилию'}
+              error={!lastNameValid}
+              onBlur={() => inputChangeHandler('lastName', lastName)}
+              mode="outlined"
+              onChangeText={nameFilterHandler.bind(this, 'lastName')}
+              value={() => lastName}
+              returnKeyType="next"
             />
-            <Text style={styles.genderText}>Мужской</Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <RadioButton
-              value={'f'}
-              status={gender === 0 ? 'checked' : 'unchecked'}
-              onPress={inputChangeHandler.bind(null, 'gender', 0)}
+          {/* First Name */}
+          <View style={styles.wrapper}>
+            <TextInput
+              label={firstNameValid ? 'Имя *' : 'Необходимо ввести имя'}
+              error={!firstNameValid}
+              onBlur={() => inputChangeHandler('firstName', firstName)}
+              mode="outlined"
+              onChangeText={nameFilterHandler.bind(this, 'firstName')}
+              value={() => firstName}
+              returnKeyType="next"
             />
-            <Text style={styles.genderText}>Женский</Text>
           </View>
+          {/* Third name */}
+          <View style={styles.wrapper}>
+            <TextInput
+              label={'Отчество'}
+              mode="outlined"
+              onChangeText={nameFilterHandler.bind(this, 'thirdName')}
+              value={() => thirdName}
+            />
+          </View>
+          {/* DATE */}
+          <View style={[styles.wrapper, styles.rowCenter]}>
+            <Text style={styles.genderTitle}>День рождения: </Text>
+            <Text style={styles.genderText}>
+              {!birthDate.length ? '' : birthDateValid ? birthDate?.split('T')[0] : 'Неверная дата!'}
+            </Text>
+            <TouchableOpacity onPress={showDatepicker}>
+              <MaterialCommunityIcons name="calendar" color={'#000'} size={25} style={{ marginHorizontal: 5 }} />
+            </TouchableOpacity>
+          </View>
+          {/* GENDER */}
+          <View style={styles.gender}>
+            <Text style={styles.genderTitle}>Пол:</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <RadioButton
+                value={'m'}
+                status={gender === 1 ? 'checked' : 'unchecked'}
+                onPress={inputChangeHandler.bind(null, 'gender', 1)}
+              />
+              <Text style={styles.genderText}>Мужской</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <RadioButton
+                value={'f'}
+                status={gender === 0 ? 'checked' : 'unchecked'}
+                onPress={inputChangeHandler.bind(null, 'gender', 0)}
+              />
+              <Text style={styles.genderText}>Женский</Text>
+            </View>
+          </View>
+          {/* SELECTOR */}
+          <View style={styles.selectorWrapper}>
+            <Text style={styles.genderTitle}>Группа клиентов</Text>
+            <Picker
+              selectedValue={formState.inputValues.status}
+              onValueChange={itemValue => inputChangeHandler('status', itemValue)}>
+              <Picker.Item label="-- выберите группу клиентов --" value={0} />
+              <Picker.Item label="VIP" value={1} />
+              <Picker.Item label="Проблемные" value={2} />
+              <Picker.Item label="ОМС" value={3} />
+            </Picker>
+          </View>
+          {/* SMS */}
+          <View style={[styles.wrapper, styles.rowCenter]}>
+            <Checkbox status={sms ? 'checked' : 'unchecked'} onPress={() => inputChangeHandler('sms', !sms)} />
+            <Text style={styles.genderText}>Уведомления по СМС</Text>
+          </View>
+          {/*  BTN SEND */}
+          <Button
+            mode="contained"
+            onPress={submitHandler}
+            disabled={!formState.formIsValid}
+            loading={formState.loading}>
+            Зарегистрировать
+          </Button>
         </View>
-        {/* SELECTOR */}
-        <View style={styles.selectorWrapper}>
-          <Text style={styles.genderTitle}>Группа клиентов</Text>
-          <Picker
-            selectedValue={formState.inputValues.status}
-            onValueChange={itemValue => inputChangeHandler('status', itemValue)}>
-            <Picker.Item label="-- выберите группу клиентов --" value={0} />
-            <Picker.Item label="VIP" value={1} />
-            <Picker.Item label="Проблемные" value={2} />
-            <Picker.Item label="ОМС" value={3} />
-          </Picker>
-        </View>
-        {/* SMS */}
-        <View style={[styles.wrapper, styles.rowCenter]}>
-          <Checkbox status={sms ? 'checked' : 'unchecked'} onPress={() => inputChangeHandler('sms', !sms)} />
-          <Text style={styles.genderText}>Уведомления по СМС</Text>
-        </View>
-        {/*  BTN SEND */}
-        <Button mode="contained" onPress={submitHandler} disabled={!formState.formIsValid} loading={formState.loading}>
-          Зарегистрировать
-        </Button>
-      </View>
-    </ScrollView>
+      </ScrollView>
+      <ModalPopup ok={formState.ok} />
+    </>
   )
 }
 
 const styles = StyleSheet.create({
+  scrollView: { flex: 1 },
   center: {
     flex: 1,
     alignItems: 'center',
