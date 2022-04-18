@@ -1,4 +1,4 @@
-import React, { useReducer } from 'react'
+import React, { useReducer, useRef } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native'
 import { Button, Checkbox, RadioButton, TextInput } from 'react-native-paper'
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
@@ -8,10 +8,12 @@ import axios from 'axios'
 // src
 import { windowWidth } from './src/styles/variables'
 import ModalPopup from './src/components/Modal'
+import Error from './src/components/Error'
 // BODY
 
 const SET_FORM = 'SET_FORM'
 const RESET_STATE = 'RESET_STATE'
+const RESET_BIRTH_DATE = 'RESET_BIRTH_DATE'
 const SET_LOADING = 'SET_LOADING'
 const SET_MODAL = 'SET_MODAL'
 
@@ -31,6 +33,14 @@ const formReducer = (state, action) => {
         }
       }
 
+      let updatedTouches = state.inputTouches
+      if (action.input === 'firstName' || action.input === 'lastName' || action.input === 'birthDate') {
+        updatedTouches = {
+          ...state.inputTouches,
+          [action.input]: action.isTouched,
+        }
+      }
+
       let updatedFormIsValid = true
       for (const key in updatedValidities) {
         updatedFormIsValid = updatedFormIsValid && updatedValidities[key]
@@ -39,7 +49,21 @@ const formReducer = (state, action) => {
       return {
         inputValues: updatedValues,
         inputValidities: updatedValidities,
+        inputTouches: updatedTouches,
         formIsValid: updatedFormIsValid,
+      }
+
+    case RESET_BIRTH_DATE:
+      return {
+        ...state,
+        inputValues: {
+          ...state.inputValues,
+          birthDate: '',
+        },
+        inputValidities: {
+          ...state.inputValidities,
+          birthDate: false,
+        },
       }
 
     case RESET_STATE:
@@ -54,12 +78,18 @@ const formReducer = (state, action) => {
           sms: false,
         },
         inputValidities: {
-          lastName: true,
-          firstName: true,
-          thirdName: true,
-          birthDate: true,
+          lastName: false,
+          firstName: false,
+          birthDate: false,
+        },
+        inputTouches: {
+          lastName: false,
+          firstName: false,
+          birthDate: false,
         },
         formIsValid: false,
+        loading: false,
+        ok: undefined,
       }
 
     case SET_LOADING:
@@ -91,8 +121,13 @@ export default function App() {
       sms: false,
     },
     inputValidities: {
-      lastName: true,
-      firstName: true,
+      lastName: false,
+      firstName: false,
+      birthDate: false,
+    },
+    inputTouches: {
+      lastName: false,
+      firstName: false,
       birthDate: false,
     },
     formIsValid: false,
@@ -102,12 +137,15 @@ export default function App() {
 
   const { firstName, lastName, thirdName, birthDate, gender, status, sms } = formState.inputValues
   const { firstName: firstNameValid, lastName: lastNameValid, birthDate: birthDateValid } = formState.inputValidities
+  const { firstName: firstNameToched, lastName: lastNameToched, birthDate: birthDateTouched } = formState.inputTouches
 
   function inputChangeHandler(inputIdentifier, inputValue) {
     let isValid = false
+    let isTouched = false
 
     // Validate lastName & firstName
     if (inputIdentifier === 'lastName' || inputIdentifier === 'firstName') {
+      isTouched = true
       if (inputValue.length !== 0 && inputValue.length < 101) {
         isValid = true
       }
@@ -123,8 +161,11 @@ export default function App() {
     }
 
     // validate birthdate
-    if (inputIdentifier === 'birthDate' && Date.parse(inputValue) < Date.parse(new Date()) - 1000 * 60 * 60 * 24) {
-      isValid = true
+    if (inputIdentifier === 'birthDate') {
+      isTouched = true
+      if (Date.parse(inputValue) < Date.parse(new Date()) - 1000 * 60 * 60 * 24) {
+        isValid = true
+      }
     }
 
     dispatchFormState({
@@ -132,6 +173,7 @@ export default function App() {
       input: inputIdentifier,
       value: inputValue,
       isValid,
+      isTouched,
     })
   }
 
@@ -171,7 +213,6 @@ export default function App() {
 
       let headers = { 'Content-Type': 'application/json' }
       const response = await axios.post(uri, body, headers)
-      // console.log('response', JSON.stringify(response, null, 4))
 
       dispatchFormState({ type: RESET_STATE })
       dispatchFormState({ type: SET_LOADING, loading: false })
@@ -182,65 +223,118 @@ export default function App() {
     }
   }
 
-  // console.log(formState.inputValues)
+  function handleResetBirthDate() {
+    dispatchFormState({ type: RESET_BIRTH_DATE })
+  }
+
+  function handleResetForm() {
+    dispatchFormState({ type: RESET_STATE })
+  }
+
+  function handleClearInput(inputIdentifier) {
+    inputChangeHandler(inputIdentifier, '')
+  }
+
+  const refFirstNameInput = useRef()
+  const refThirdNameInput = useRef()
 
   return (
     <>
-      <ScrollView contentContainerStyle={{ backgroundColor: '#fff' }}>
+      <ScrollView contentContainerStyle={{ flex: 1 }}>
         <View style={styles.center}>
+          <Text>* — обязательные поля</Text>
           {/* Last Name */}
           <View style={styles.wrapper}>
             <TextInput
-              label={lastNameValid ? 'Фамилия *' : 'Необходимо ввести фамилию'}
-              error={!lastNameValid}
-              onBlur={() => inputChangeHandler('lastName', lastName)}
-              mode="outlined"
-              onChangeText={nameFilterHandler.bind(this, 'lastName')}
+              label={'Фамилия *'}
               value={() => lastName}
+              onChangeText={nameFilterHandler.bind(this, 'lastName')}
+              onBlur={() => inputChangeHandler('lastName', lastName)}
+              error={lastNameValid ? false : lastNameToched ? true : false}
+              mode="outlined"
               returnKeyType="next"
+              onSubmitEditing={() => {
+                refFirstNameInput.current.focus()
+              }}
+              right={
+                <TextInput.Icon
+                  name={() => (lastName ? <MaterialCommunityIcons name="close" color="#000" size={20} /> : null)}
+                  onPress={() => handleClearInput('lastName')}
+                />
+              }
             />
           </View>
+          {/* Error */}
+          {lastNameValid ? null : lastNameToched ? <Error text="Необходимо ввести фамилию!" /> : null}
           {/* First Name */}
           <View style={styles.wrapper}>
             <TextInput
-              label={firstNameValid ? 'Имя *' : 'Необходимо ввести имя'}
-              error={!firstNameValid}
-              onBlur={() => inputChangeHandler('firstName', firstName)}
-              mode="outlined"
-              onChangeText={nameFilterHandler.bind(this, 'firstName')}
+              label={'Имя *'}
               value={() => firstName}
+              onChangeText={nameFilterHandler.bind(this, 'firstName')}
+              onBlur={() => inputChangeHandler('firstName', firstName)}
+              error={firstNameValid ? false : firstNameToched ? true : false}
+              mode="outlined"
+              ref={refFirstNameInput}
               returnKeyType="next"
+              onSubmitEditing={() => {
+                refThirdNameInput.current.focus()
+              }}
+              right={
+                <TextInput.Icon
+                  name={() => (firstName ? <MaterialCommunityIcons name="close" color="#000" size={20} /> : null)}
+                  onPress={() => handleClearInput('firstName')}
+                />
+              }
             />
           </View>
+          {/* Error */}
+          {firstNameValid ? null : firstNameToched ? <Error text="Необходимо ввести имя!" /> : null}
           {/* Third name */}
           <View style={styles.wrapper}>
             <TextInput
               label={'Отчество'}
-              mode="outlined"
-              onChangeText={nameFilterHandler.bind(this, 'thirdName')}
               value={() => thirdName}
+              onChangeText={nameFilterHandler.bind(this, 'thirdName')}
+              mode="outlined"
+              ref={refThirdNameInput}
+              right={
+                <TextInput.Icon
+                  name={() => (thirdName ? <MaterialCommunityIcons name="close" color="#000" size={20} /> : null)}
+                  onPress={() => handleClearInput('thirdName')}
+                />
+              }
             />
           </View>
           {/* DATE */}
           <View style={[styles.wrapper, styles.rowCenter]}>
-            <Text style={styles.genderTitle}>День рождения: </Text>
-            <Text style={styles.genderText}>
+            <Text style={styles.title}>День рождения *: </Text>
+            <Text style={styles.text}>
               {!birthDate.length ? '' : birthDateValid ? birthDate?.split('T')[0] : 'Неверная дата!'}
             </Text>
             <TouchableOpacity onPress={showDatepicker}>
               <MaterialCommunityIcons name="calendar" color={'#000'} size={25} style={{ marginHorizontal: 5 }} />
             </TouchableOpacity>
+            {birthDate ? (
+              <TouchableOpacity onPress={handleResetBirthDate}>
+                <MaterialCommunityIcons name="close-thick" size={20} />
+              </TouchableOpacity>
+            ) : null}
           </View>
+
+          {/* Error */}
+          {birthDateValid ? null : birthDateTouched ? <Error text="Необходимо указать дату рождения!" /> : null}
+
           {/* GENDER */}
           <View style={styles.gender}>
-            <Text style={styles.genderTitle}>Пол:</Text>
+            <Text style={styles.title}>Пол:</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <RadioButton
                 value={'m'}
                 status={gender === 1 ? 'checked' : 'unchecked'}
                 onPress={inputChangeHandler.bind(null, 'gender', 1)}
               />
-              <Text style={styles.genderText}>Мужской</Text>
+              <Text style={styles.text}>Мужской</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <RadioButton
@@ -248,12 +342,12 @@ export default function App() {
                 status={gender === 0 ? 'checked' : 'unchecked'}
                 onPress={inputChangeHandler.bind(null, 'gender', 0)}
               />
-              <Text style={styles.genderText}>Женский</Text>
+              <Text style={styles.text}>Женский</Text>
             </View>
           </View>
           {/* SELECTOR */}
           <View style={styles.selectorWrapper}>
-            <Text style={styles.genderTitle}>Группа клиентов</Text>
+            <Text style={styles.title}>Группа клиентов</Text>
             <Picker
               selectedValue={formState.inputValues.status}
               onValueChange={itemValue => inputChangeHandler('status', itemValue)}>
@@ -266,19 +360,27 @@ export default function App() {
           {/* SMS */}
           <View style={[styles.wrapper, styles.rowCenter]}>
             <Checkbox status={sms ? 'checked' : 'unchecked'} onPress={() => inputChangeHandler('sms', !sms)} />
-            <Text style={styles.genderText}>Уведомления по СМС</Text>
+            <Text style={styles.text}>Уведомления по СМС</Text>
           </View>
           {/*  BTN SEND */}
           <Button
+            style={styles.btnReg}
             mode="contained"
             onPress={submitHandler}
             disabled={!formState.formIsValid}
             loading={formState.loading}>
             Зарегистрировать
           </Button>
+          <Button
+            mode="text"
+            onPress={handleResetForm}
+            disabled={!(lastName || firstName || thirdName || birthDate || gender || status || sms)}
+            loading={formState.loading}>
+            Очистить форму
+          </Button>
         </View>
+        <ModalPopup ok={formState.ok} />
       </ScrollView>
-      <ModalPopup ok={formState.ok} />
     </>
   )
 }
@@ -298,11 +400,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  genderTitle: {
+  title: {
     fontWeight: 'bold',
     fontSize: 15,
   },
-  genderText: {
+  text: {
     fontSize: 15,
   },
   gender: {
@@ -316,5 +418,8 @@ const styles = StyleSheet.create({
     width: windowWidth * 0.9,
     height: windowWidth * 0.15,
     marginVertical: 20,
+  },
+  btnReg: {
+    marginBottom: 15,
   },
 })

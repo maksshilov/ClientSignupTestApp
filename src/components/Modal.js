@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { View, Text, Modal, StyleSheet } from 'react-native'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
+import { windowWidth } from '../styles/variables'
 // BODY
 
 export default function ModalPopup({ ok }) {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    console.log('ok', ok)
     if (ok !== undefined) {
       setTimeout(() => {
         setVisible(true)
