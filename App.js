@@ -1,14 +1,15 @@
 import React, { useReducer, useRef } from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
 import { Button, Checkbox, RadioButton, TextInput } from 'react-native-paper'
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import { Picker } from '@react-native-picker/picker'
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
 import axios from 'axios'
 // src
 import { windowWidth } from './src/styles/variables'
 import ModalPopup from './src/components/Modal'
 import Error from './src/components/Error'
+import Divider from './src/components/Divider'
 // BODY
 
 const SET_FORM = 'SET_FORM'
@@ -26,7 +27,12 @@ const formReducer = (state, action) => {
       }
 
       let updatedValidities = state.inputValidities
-      if (action.input === 'firstName' || action.input === 'lastName' || action.input === 'birthDate') {
+      if (
+        action.input === 'firstName' ||
+        action.input === 'lastName' ||
+        action.input === 'thirdName' ||
+        action.input === 'birthDate'
+      ) {
         updatedValidities = {
           ...state.inputValidities,
           [action.input]: action.isValid,
@@ -54,6 +60,7 @@ const formReducer = (state, action) => {
       }
 
     case RESET_BIRTH_DATE:
+      updatedFormIsValid
       return {
         ...state,
         inputValues: {
@@ -64,6 +71,7 @@ const formReducer = (state, action) => {
           ...state.inputValidities,
           birthDate: false,
         },
+        formIsValid: false,
       }
 
     case RESET_STATE:
@@ -80,6 +88,7 @@ const formReducer = (state, action) => {
         inputValidities: {
           lastName: false,
           firstName: false,
+          thirdName: true,
           birthDate: false,
         },
         inputTouches: {
@@ -123,6 +132,7 @@ export default function App() {
     inputValidities: {
       lastName: false,
       firstName: false,
+      thirdName: true,
       birthDate: false,
     },
     inputTouches: {
@@ -136,9 +146,15 @@ export default function App() {
   })
 
   const { firstName, lastName, thirdName, birthDate, gender, status, sms } = formState.inputValues
-  const { firstName: firstNameValid, lastName: lastNameValid, birthDate: birthDateValid } = formState.inputValidities
+  const {
+    firstName: firstNameValid,
+    lastName: lastNameValid,
+    thirdName: thirdNameValid,
+    birthDate: birthDateValid,
+  } = formState.inputValidities
   const { firstName: firstNameToched, lastName: lastNameToched, birthDate: birthDateTouched } = formState.inputTouches
 
+  // Handlers -->
   function inputChangeHandler(inputIdentifier, inputValue) {
     let isValid = false
     let isTouched = false
@@ -153,7 +169,7 @@ export default function App() {
 
     // Validate thirdName
     if (inputIdentifier === 'thirdName') {
-      if (inputValue.length !== 0 && inputValue.length < 101) {
+      if (inputValue.length < 101) {
         isValid = true
       } else {
         isValid = false
@@ -177,25 +193,10 @@ export default function App() {
     })
   }
 
-  // replace number and spaces from names
   function nameFilterHandler(inputIdentifier, text) {
     text = text.toString().trim().replace(/\d/g, '')
     inputChangeHandler(inputIdentifier, text)
   }
-
-  // DatePicker -->
-  function onChange(event, selectedDate) {
-    const currentDate = selectedDate.toISOString()
-    inputChangeHandler('birthDate', currentDate)
-  }
-  function showDatepicker() {
-    DateTimePickerAndroid.open({
-      value: new Date(),
-      onChange,
-      mode: 'date',
-    })
-  }
-  // <-- DatePicker
 
   async function submitHandler() {
     let body = {
@@ -220,8 +221,10 @@ export default function App() {
     } catch (error) {
       dispatchFormState({ type: SET_LOADING, loading: false })
       dispatchFormState({ type: SET_MODAL, ok: false })
+      dispatchFormState({ type: SET_MODAL, ok: undefined })
     }
   }
+  console.log('formState.ok', formState.ok)
 
   function handleResetBirthDate() {
     dispatchFormState({ type: RESET_BIRTH_DATE })
@@ -234,6 +237,21 @@ export default function App() {
   function handleClearInput(inputIdentifier) {
     inputChangeHandler(inputIdentifier, '')
   }
+  // <-- Handlers
+
+  // DatePicker -->
+  function onChange(event, selectedDate) {
+    const currentDate = selectedDate.toISOString()
+    inputChangeHandler('birthDate', currentDate)
+  }
+  function showDatepicker() {
+    DateTimePickerAndroid.open({
+      value: new Date(),
+      onChange,
+      mode: 'date',
+    })
+  }
+  // <-- DatePicker
 
   const refFirstNameInput = useRef()
   const refThirdNameInput = useRef()
@@ -241,10 +259,10 @@ export default function App() {
   return (
     <>
       <ScrollView contentContainerStyle={{ flex: 1 }}>
-        <View style={styles.center}>
+        <View style={styles().center}>
           <Text>* — обязательные поля</Text>
           {/* Last Name */}
-          <View style={styles.wrapper}>
+          <View style={styles().wrapper}>
             <TextInput
               label={'Фамилия *'}
               value={() => lastName}
@@ -265,9 +283,13 @@ export default function App() {
             />
           </View>
           {/* Error */}
-          {lastNameValid ? null : lastNameToched ? <Error text="Необходимо ввести фамилию!" /> : null}
+          {lastName.length > 100 ? (
+            <Error text="Макс. 100 символов!" />
+          ) : lastNameValid ? null : lastNameToched ? (
+            <Error text="Необходимо ввести фамилию!" />
+          ) : null}
           {/* First Name */}
-          <View style={styles.wrapper}>
+          <View style={styles().wrapper}>
             <TextInput
               label={'Имя *'}
               value={() => firstName}
@@ -289,9 +311,13 @@ export default function App() {
             />
           </View>
           {/* Error */}
-          {firstNameValid ? null : firstNameToched ? <Error text="Необходимо ввести имя!" /> : null}
+          {firstName.length > 100 ? (
+            <Error text="Макс. 100 символов!" />
+          ) : firstNameValid ? null : firstNameToched ? (
+            <Error text="Необходимо ввести имя!" />
+          ) : null}
           {/* Third name */}
-          <View style={styles.wrapper}>
+          <View style={styles().wrapper}>
             <TextInput
               label={'Отчество'}
               value={() => thirdName}
@@ -306,10 +332,12 @@ export default function App() {
               }
             />
           </View>
+          {/* Error */}
+          {thirdNameValid ? null : <Error text="Макс. 100 символов!" />}
           {/* DATE */}
-          <View style={[styles.wrapper, styles.rowCenter]}>
-            <Text style={styles.title}>День рождения *: </Text>
-            <Text style={styles.text}>
+          <View style={[styles().wrapper, styles().rowCenter]}>
+            <Text style={styles().title}>День рождения *: </Text>
+            <Text style={styles(birthDateValid).textBirthDate}>
               {!birthDate.length ? '' : birthDateValid ? birthDate?.split('T')[0] : 'Неверная дата!'}
             </Text>
             <TouchableOpacity onPress={showDatepicker}>
@@ -323,18 +351,22 @@ export default function App() {
           </View>
 
           {/* Error */}
-          {birthDateValid ? null : birthDateTouched ? <Error text="Необходимо указать дату рождения!" /> : null}
-
+          {!birthDateValid && birthDate.length ? (
+            <Error date text="Док, ё* **** мать, верни меня в мой 2019!" />
+          ) : birthDateValid ? null : birthDateTouched ? (
+            <Error date text="Необходимо указать дату рождения!" />
+          ) : null}
+          <Divider />
           {/* GENDER */}
-          <View style={styles.gender}>
-            <Text style={styles.title}>Пол:</Text>
+          <View style={styles().gender}>
+            <Text style={styles().title}>Пол:</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <RadioButton
                 value={'m'}
                 status={gender === 1 ? 'checked' : 'unchecked'}
                 onPress={inputChangeHandler.bind(null, 'gender', 1)}
               />
-              <Text style={styles.text}>Мужской</Text>
+              <Text style={styles().text}>Мужской</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <RadioButton
@@ -342,12 +374,14 @@ export default function App() {
                 status={gender === 0 ? 'checked' : 'unchecked'}
                 onPress={inputChangeHandler.bind(null, 'gender', 0)}
               />
-              <Text style={styles.text}>Женский</Text>
+              <Text style={styles().text}>Женский</Text>
             </View>
           </View>
+          <Divider />
+
           {/* SELECTOR */}
-          <View style={styles.selectorWrapper}>
-            <Text style={styles.title}>Группа клиентов</Text>
+          <View style={styles().selectorWrapper}>
+            <Text style={styles().title}>Группа клиентов:</Text>
             <Picker
               selectedValue={formState.inputValues.status}
               onValueChange={itemValue => inputChangeHandler('status', itemValue)}>
@@ -357,25 +391,29 @@ export default function App() {
               <Picker.Item label="ОМС" value={3} />
             </Picker>
           </View>
+          <Divider />
+
           {/* SMS */}
-          <View style={[styles.wrapper, styles.rowCenter]}>
+          <View style={[styles().wrapper, styles().rowCenter]}>
             <Checkbox status={sms ? 'checked' : 'unchecked'} onPress={() => inputChangeHandler('sms', !sms)} />
-            <Text style={styles.text}>Уведомления по СМС</Text>
+            <Text style={styles().text}>Уведомления по СМС</Text>
           </View>
+
           {/*  BTN SEND */}
           <Button
-            style={styles.btnReg}
+            style={styles().btnReg}
             mode="contained"
             onPress={submitHandler}
             disabled={!formState.formIsValid}
             loading={formState.loading}>
             Зарегистрировать
           </Button>
+
+          {/* BTN CLEAR */}
           <Button
             mode="text"
             onPress={handleResetForm}
-            disabled={!(lastName || firstName || thirdName || birthDate || gender || status || sms)}
-            loading={formState.loading}>
+            disabled={!(lastName || firstName || thirdName || birthDate || gender || status || sms)}>
             Очистить форму
           </Button>
         </View>
@@ -385,41 +423,46 @@ export default function App() {
   )
 }
 
-const styles = StyleSheet.create({
-  scrollView: { flex: 1 },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    paddingTop: 10,
-  },
-  wrapper: {
-    width: windowWidth * 0.9,
-    marginVertical: 10,
-  },
-  rowCenter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  title: {
-    fontWeight: 'bold',
-    fontSize: 15,
-  },
-  text: {
-    fontSize: 15,
-  },
-  gender: {
-    justifyContent: 'space-between',
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: windowWidth * 0.9,
-    marginVertical: 10,
-  },
-  selectorWrapper: {
-    width: windowWidth * 0.9,
-    height: windowWidth * 0.15,
-    marginVertical: 20,
-  },
-  btnReg: {
-    marginBottom: 15,
-  },
-})
+const styles = birthDateValid =>
+  StyleSheet.create({
+    scrollView: { flex: 1 },
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      paddingTop: 10,
+    },
+    wrapper: {
+      width: windowWidth * 0.9,
+      marginVertical: 10,
+    },
+    rowCenter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    title: {
+      fontWeight: 'bold',
+      fontSize: 15,
+    },
+    textBirthDate: {
+      fontSize: 15,
+      color: birthDateValid ? '#000' : 'red',
+    },
+    text: {
+      fontSize: 15,
+    },
+    gender: {
+      justifyContent: 'space-between',
+      flexDirection: 'row',
+      alignItems: 'center',
+      width: windowWidth * 0.9,
+      marginVertical: 10,
+    },
+    selectorWrapper: {
+      width: windowWidth * 0.9,
+      height: windowWidth * 0.15,
+      marginVertical: 20,
+    },
+    btnReg: {
+      marginVertical: 15,
+    },
+  })
