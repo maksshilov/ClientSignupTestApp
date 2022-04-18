@@ -82,8 +82,8 @@ const formReducer = (state, action) => {
 export default function App() {
   const [formState, dispatchFormState] = useReducer(formReducer, {
     inputValues: {
-      lastName: 'Ivanov',
-      firstName: 'Ivan',
+      lastName: '',
+      firstName: '',
       thirdName: '',
       birthDate: '',
       gender: undefined,

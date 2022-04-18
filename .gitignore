@@ -30,6 +30,7 @@ local.properties
 *.iml
 *.hprof
 
+
 # node.js
 #
 node_modules/
@@ -59,3 +60,4 @@ buck-out/
 # Ruby / CocoaPods
 /ios/Pods/
 /vendor/bundle/
+android/gradle.properties
